@@ -1,0 +1,57 @@
+spring:
+  # Profile: dev (H2) | prod (PostgreSQL)
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  application:
+    name: MediScanServer
+
+  main:
+    banner-mode: console
+
+  # DB: dev=H2 (file), prod=PostgreSQL
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:file:./data/mediscan;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_POOL_SIZE:10}
+
+  h2:
+    console:
+      enabled: ${H2_CONSOLE_ENABLED:true}
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: true
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.H2Dialect}
+
+logging:
+  charset:
+    console: UTF-8
+  level:
+    root: INFO
+    com.mediscan: INFO
+
+# MFDS public API - get service key at data.go.kr
+api:
+  public-data:
+    service-key: ${API_PUBLIC_DATA_SERVICE_KEY:}
+    base-url: ${API_PUBLIC_DATA_BASE_URL:https://apis.data.go.kr/1471000}
+    page-size: ${API_PAGE_SIZE:100}
+    response-type: json
+
+    sync-on-startup: ${API_SYNC_ON_STARTUP:false}
+    sync-only-when-empty: ${API_SYNC_ONLY_WHEN_EMPTY:false}
+
+feign:
+  client:
+    config:
+      default:
+        decodeSlash: false

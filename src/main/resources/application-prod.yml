@@ -1,0 +1,27 @@
+# 운영용: PostgreSQL (권장 DB)
+# 사용법: SPRING_PROFILES_ACTIVE=prod 및 아래 환경변수 설정
+#
+# 예시 환경변수:
+#   SPRING_PROFILES_ACTIVE=prod
+#   SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/mediscan
+#   SPRING_DATASOURCE_USERNAME=mediscan
+#   SPRING_DATASOURCE_PASSWORD=your_password
+#   SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+#
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/mediscan}
+    username: ${SPRING_DATASOURCE_USERNAME:mediscan}
+    password: ${SPRING_DATASOURCE_PASSWORD:your_password}
+    driver-class-name: org.postgresql.Driver
+
+  h2:
+    console:
+      enabled: false
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
