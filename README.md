@@ -311,4 +311,4 @@ src/main/java/com/mediscan/
 
 ## License
 
-KYO License
+None
