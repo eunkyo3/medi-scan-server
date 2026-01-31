@@ -1,48 +1,48 @@
 # MediScan Server
 
-Spring Boot API 서버로, [식약처 공공데이터포털](https://www.data.go.kr/data/15057639/openapi.do) 낱알식별 API를 활용해 **알약 식별 정보**를 제공합니다. Flutter/모바일 앱에서 OCR로 읽은 식별문자·모양·색상을 기준으로 의약품을 검색할 수 있습니다.
+Spring Boot API server that provides **pill identification data** using the [Korea MFDS Public Data Portal](https://www.data.go.kr/data/15057639/openapi.do) pill identification API. Flutter/mobile apps can search for medicines by identifier text, shape, and color (e.g. from OCR).
 
 ---
 
-## 목차
+## Table of Contents
 
-- [아키텍처](#아키텍처)
-- [기술 스택](#기술-스택)
-- [시스템 흐름](#시스템-흐름)
-- [시작하기](#시작하기)
-- [설정](#설정)
-- [API 사용법](#api-사용법)
-- [데이터베이스](#데이터베이스)
-- [프론트엔드 연동](#프론트엔드-연동)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [System Flow](#system-flow)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [API Usage](#api-usage)
+- [Database](#database)
+- [Frontend Integration](#frontend-integration)
 
 ---
 
-## 아키텍처
+## Architecture
 
 ```
 ┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────────────┐
-│  Flutter App    │────▶│   MediScan Server    │────▶│  식약처 공공데이터 API   │
-│  (클라이언트)    │     │   (Spring Boot)      │     │  (data.go.kr)           │
+│  Flutter App    │────▶│   MediScan Server    │────▶│  MFDS Public Data API   │
+│  (Client)       │     │   (Spring Boot)      │     │  (data.go.kr)            │
 └─────────────────┘     └──────────────────────┘     └─────────────────────────┘
         │                            │
-        │  GET /api/v1/pills         │  기동 시 전체 페이지 페이징 호출
-        │  ?print=&shape=&color=     │  → pill_info 테이블에 저장
+        │  GET /api/v1/pills         │  On startup: fetch all pages
+        │  ?print=&shape=&color=     │  → store in pill_info table
         │                            │
         │                            ▼
         │                   ┌─────────────────────┐
         │                   │  H2 / PostgreSQL    │
-        │                   │  pill_info          │
-        │                   │  search_history     │
+        │                   │  pill_info         │
+        │                   │  search_history    │
         │                   └─────────────────────┘
         │
-        ◀── JSON 응답 (33개 필드)
+        ◀── JSON response (33 fields)
 ```
 
-### 컴포넌트 다이어그램
+### Component Diagram
 
 ```mermaid
 flowchart TB
-    subgraph Client["클라이언트"]
+    subgraph Client["Client"]
         Flutter[Flutter App]
     end
 
@@ -53,11 +53,11 @@ flowchart TB
         Repo[PillInfoRepository]
     end
 
-    subgraph External["외부"]
-        API[식약처 공공데이터 API]
+    subgraph External["External"]
+        API[MFDS Public Data API]
     end
 
-    subgraph DB["데이터베이스"]
+    subgraph DB["Database"]
         H2[(H2 / PostgreSQL)]
     end
 
@@ -66,165 +66,165 @@ flowchart TB
     SearchSvc --> Repo
     Repo --> H2
 
-    SyncSvc -->|"기동 시 동기화"| API
+    SyncSvc -->|"Sync on startup"| API
     SyncSvc --> Repo
 ```
 
 ---
 
-## 기술 스택
+## Tech Stack
 
-| 구분 | 기술 |
-|------|------|
+| Category | Technology |
+|----------|------------|
 | Runtime | Java 21 |
 | Framework | Spring Boot 3.4.2 |
-| DB | H2 (개발), PostgreSQL (운영 권장) |
+| DB | H2 (dev), PostgreSQL (prod recommended) |
 | HTTP Client | Spring Cloud OpenFeign |
 | Build | Gradle (Groovy DSL) |
 
 ---
 
-## 시스템 흐름
+## System Flow
 
-### 1. 기동 시 데이터 동기화 흐름
+### 1. Data sync on startup
 
 ```mermaid
 flowchart TD
-    A[서버 기동] --> B{sync-on-startup?}
-    B -->|false| C[동기화 건너뜀]
+    A[Server start] --> B{sync-on-startup?}
+    B -->|false| C[Skip sync]
     B -->|true| D{sync-only-when-empty?}
-    D -->|true| E[DB 건수 확인]
-    E -->|비어 있음| F[동기화 시작]
-    E -->|있음| G[동기화 건너뜀]
-    D -->|false| H[기존 데이터 삭제]
+    D -->|true| E[Check DB count]
+    E -->|empty| F[Start sync]
+    E -->|has data| G[Skip sync]
+    D -->|false| H[Delete existing data]
     H --> F
-    F --> I[pageNo=1부터 API 호출]
-    I --> J[items → pill_info 저장]
-    J --> K{다음 페이지?}
-    K -->|예| I
-    K -->|아니오| L[동기화 완료]
+    F --> I[Call API from pageNo=1]
+    I --> J[Save items → pill_info]
+    J --> K{Next page?}
+    K -->|yes| I
+    K -->|no| L[Sync complete]
 ```
 
-### 2. 검색 요청 흐름
+### 2. Search request flow
 
 ```mermaid
 flowchart LR
-    A[클라이언트 요청] --> B[PillController]
+    A[Client request] --> B[PillController]
     B --> C[PillSearchService]
     C --> D[PillInfoRepository]
     D --> E[(pill_info)]
     E --> D
     D --> C
-    C --> F[PillResponse 변환]
-    F --> G[JSON 응답]
-    C --> H[SearchHistory 저장]
+    C --> F[Map to PillResponse]
+    F --> G[JSON response]
+    C --> H[Save SearchHistory]
 ```
 
 ---
 
-## 시작하기
+## Getting Started
 
-### 사전 요구사항
+### Prerequisites
 
-- **Java 21** 이상
-- **공공데이터포털 인증키** ([발급](https://www.data.go.kr/data/15057639/openapi.do))
+- **Java 21** or later
+- **Public Data Portal API key** ([Apply](https://www.data.go.kr/data/15057639/openapi.do))
 
-### 1. 저장소 클론
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/mediscan-server.git
 cd mediscan-server
 ```
 
-### 2. 인증키 설정
+### 2. Set API key
 
-인증키는 반드시 환경변수로 설정합니다. **절대 `application.yml`에 직접 입력하지 마세요.**
+Set the API key via environment variables. **Do not put it in `application.yml`.**
 
 **Windows (PowerShell)**
 
 ```powershell
-$env:API_PUBLIC_DATA_SERVICE_KEY="발급받은_인증키"
+$env:API_PUBLIC_DATA_SERVICE_KEY="your_api_key"
 ```
 
 **Linux / macOS**
 
 ```bash
-export API_PUBLIC_DATA_SERVICE_KEY="발급받은_인증키"
+export API_PUBLIC_DATA_SERVICE_KEY="your_api_key"
 ```
 
-> `.env.example`을 복사해 `.env`로 만들고 값을 채운 뒤, 실행 시 로드하는 방식도 가능합니다.
+> You can copy `.env.example` to `.env`, fill in values, and run with `.\run.ps1` so the script loads `.env` into the environment.
 
-### 3. 실행
+### 3. Run
 
 ```bash
 # Windows (PowerShell)
 .\gradlew.bat bootRun
 
-# Windows (UTF-8 콘솔용 - 한글 로그 권장)
+# Windows (UTF-8 console, loads .env)
 .\run.ps1
 
 # Linux / macOS
 ./gradlew bootRun
 ```
 
-- 서버: `http://localhost:8080`
-- H2 콘솔 (dev): `http://localhost:8080/h2-console`
+- Server: `http://localhost:8080`
+- H2 console (dev): `http://localhost:8080/h2-console`
 
-### 4. 동기화 옵션 (필수)
+### 4. Sync option (required for first run)
 
-최초 실행 시 **데이터 동기화**를 해야 검색이 동작합니다.
+Search works only after **data sync** has run at least once.
 
 ```powershell
-# 기동 시 동기화 활성화 (필수)
+# Enable sync on startup
 $env:API_SYNC_ON_STARTUP="true"
-# DB 비었을 때만 동기화 (권장: 두 번째 실행부터 생략)
+# Sync only when DB is empty (recommended for subsequent runs)
 $env:API_SYNC_ONLY_WHEN_EMPTY="true"
 
 .\gradlew.bat bootRun
 ```
 
-동기화가 끝날 때까지 대기한 후, 아래처럼 검색을 시도합니다.
+Wait for sync to finish, then try a search.
 
 ---
 
-## 설정
+## Configuration
 
-| 환경변수 | 기본값 | 설명 |
-|----------|--------|------|
-| `API_PUBLIC_DATA_SERVICE_KEY` | - | 공공데이터 인증키 **(필수)** |
-| `SPRING_PROFILES_ACTIVE` | prod | `dev` (H2) / `prod` (PostgreSQL) |
-| `API_SYNC_ON_STARTUP` | false | 기동 시 동기화 여부 |
-| `API_SYNC_ONLY_WHEN_EMPTY` | false | DB 비었을 때만 동기화 여부 |
+| Environment variable | Default | Description |
+|---------------------|---------|-------------|
+| `API_PUBLIC_DATA_SERVICE_KEY` | - | Public Data API key **(required)** |
+| `SPRING_PROFILES_ACTIVE` | dev | `dev` (H2) / `prod` (PostgreSQL) |
+| `API_SYNC_ON_STARTUP` | false | Run sync on startup |
+| `API_SYNC_ONLY_WHEN_EMPTY` | false | Sync only when DB is empty |
 
-상세 설정은 `application.yml`, `application-dev.yml`, `application-prod.yml`을 참고하세요.
+See `application.yml`, `application-dev.yml`, and `application-prod.yml` for full configuration.
 
 ---
 
-## API 사용법
+## API Usage
 
-### 알약 검색
+### Pill search
 
-| 항목 | 값 |
-|------|-----|
+| Item | Value |
+|------|-------|
 | Method | GET |
 | Path | `/api/v1/pills` |
-| Content-Type | application/json (응답) |
+| Content-Type | application/json (response) |
 
-**쿼리 파라미터**
+**Query parameters**
 
-| 파라미터 | 필수 | 설명 |
-|----------|------|------|
-| print | ✅ | 식별문자 (OCR 결과, 예: IDG, TY) |
-| shape | | 모양 (원형, 타원형, 장방형 등) |
-| color | | 색상 (하양, 노랑, 연두 등) |
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| print | ✅ | Identifier text (e.g. from OCR: IDG, TY) |
+| shape | | Shape (e.g. round, oval, oblong) |
+| color | | Color (e.g. white, yellow, green) |
 
-**예시**
+**Example**
 
 ```bash
 curl "http://localhost:8080/api/v1/pills?print=IDG&shape=원형&color=연두"
 ```
 
-**응답 예시**
+**Sample response**
 
 ```json
 [
@@ -242,18 +242,18 @@ curl "http://localhost:8080/api/v1/pills?print=IDG&shape=원형&color=연두"
 ]
 ```
 
-응답은 항상 배열입니다. 0건이면 `[]`, 1건 이상이면 해당 항목들(전체 33개 필드)을 반환합니다.
+The response is always an array: empty `[]` for no results, or one or more items (33 fields each).
 
 ---
 
-## 데이터베이스
+## Database
 
-| 프로파일 | DB | 용도 |
-|----------|-----|------|
-| dev | H2 (파일) | 로컬 개발, 별도 설치 없음 |
-| prod | PostgreSQL | 운영 환경 권장 |
+| Profile | DB | Use case |
+|---------|-----|----------|
+| dev | H2 (file) | Local development, no extra setup |
+| prod | PostgreSQL | Production |
 
-**PostgreSQL 예시 (Docker)**
+**PostgreSQL example (Docker)**
 
 ```bash
 docker run -d --name mediscan-db \
@@ -274,41 +274,41 @@ $env:SPRING_DATASOURCE_PASSWORD="your_password"
 
 ---
 
-## 프론트엔드 연동
+## Frontend Integration
 
-Flutter 앱과의 연동 방법은 [docs/FLUTTER_API_INTEGRATION.md](docs/FLUTTER_API_INTEGRATION.md)를 참고하세요.
+See [docs/FLUTTER_API_INTEGRATION.md](docs/FLUTTER_API_INTEGRATION.md) for Flutter integration.
 
-- Base URL 환경별 설정 (에뮬레이터, 실제 기기)
-- Pill 모델 (33개 필드 매핑)
-- API 서비스 예시 코드
-- CORS 설정
-
----
-
-## 로그
-
-- **콘솔**: UTF-8 출력
-- **파일**: `log/mediscan.log` (일별 롤링, 30일 보관)
+- Base URL per environment (emulator, device)
+- Pill model (33 fields)
+- API service example
+- CORS setup
 
 ---
 
-## 프로젝트 구조
+## Logging
+
+- **Console**: UTF-8
+- **File**: `log/mediscan.log` (daily rollover, 30-day retention)
+
+---
+
+## Project structure
 
 ```
 src/main/java/com/mediscan/
-├── MediScanServerApplication.java   # 엔트리포인트
-├── client/                          # Feign 클라이언트 (공공데이터 API)
+├── MediScanServerApplication.java   # Entry point
+├── client/                          # Feign client (MFDS API)
 ├── config/                          # CORS, RequestLoggingFilter
 ├── controller/                      # PillController
-├── dto/                             # 요청/응답 DTO
-├── entity/                          # JPA 엔티티 (PillInfo, SearchHistory)
-├── exception/                       # 글로벌 예외 처리
-├── repository/                      # JPA Repository
+├── dto/                             # Request/response DTOs
+├── entity/                          # JPA entities (PillInfo, SearchHistory)
+├── exception/                       # Global exception handler
+├── repository/                      # JPA repositories
 └── service/                         # PillSearchService, PillDataSyncService
 ```
 
 ---
 
-## 라이선스
+## License
 
 KYO License
